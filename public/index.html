@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Guard AI - Live Workspace</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #1e1e1e; color: white; padding: 20px; margin: 0; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .status { color: #4CAF50; font-weight: bold; background: #2d2d2d; padding: 5px 15px; border-radius: 20px; }
+        .main-container { display: flex; gap: 20px; flex: 1; min-height: 0; }
+        
+        /* Editör ve Log Paneli Tasarımı */
+        #editor-wrapper { flex: 3; display: flex; flex-direction: column; }
+        #editor { flex: 1; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); font-size: 15px; }
+        
+        #log-panel { flex: 1; background: #252526; border-radius: 8px; padding: 15px; overflow-y: auto; border-left: 4px solid #007acc; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .log-item { background: #333333; padding: 10px; margin-bottom: 10px; border-radius: 5px; font-size: 13px; border-left: 3px solid #4CAF50; animation: fadeIn 0.3s ease-in; }
+        .log-time { color: #888; font-size: 11px; margin-bottom: 3px; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2>Sync Guard AI Workspace</h2>
+    <span class="status" id="status">Connecting...</span>
+</div>
+
+<div class="main-container">
+    <div id="editor-wrapper">
+        <div id="editor"></div>
+    </div>
+    <div id="log-panel">
+        <h3 style="margin-top: 0; color: #d4d4d4; font-size: 16px; border-bottom: 1px solid #444; padding-bottom: 10px;">AI Action Logs</h3>
+        </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.3/ace.js"></script>
+<script>
+    // Editör Kurulumu
+    var editor = ace.edit("editor");
+    editor.setTheme("ace/theme/monokai");
+    editor.session.setMode("ace/mode/python");
+
+    // Başlangıç Kodu (ROS2 Örneği)
+    const defaultCode = `# ROS2 Macro Route Planning Node
+import rclpy
+from nav_msgs.msg import Path
+
+def plan_macro_route(start_coord, end_coord):
+    # Waiting for coordinates...
+    pass`;
+    
+    editor.setValue(defaultCode, -1); 
+
+    // WebSocket Bağlantısı
+    // Bağlanılan web adresini otomatik algılayıp güvenli (wss) veya normal (ws) bağlantı kurar
+    const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(protocol + window.location.host + "/ws");
+    const status = document.getElementById("status");
+    const logPanel = document.getElementById("log-panel");
+    let isAiUpdating = false;
+
+    ws.onopen = () => {
+        status.textContent = "Connected (Sync On)";
+        status.style.color = "#4CAF50";
+    };
+    
+    ws.onclose = () => { 
+        status.textContent = "Disconnected"; 
+        status.style.color = "#F44336"; 
+    };
+
+    ws.onmessage = function(event) {
+        // AI'dan gelen JSON verisini çözümle
+        const data = JSON.parse(event.data);
+        
+        // Kodu Güncelle (İmleci bozmadan)
+        isAiUpdating = true;
+        const cursorPosition = editor.getCursorPosition(); 
+        editor.setValue(data.resolved_text, -1); 
+        editor.clearSelection();
+        editor.moveCursorToPosition(cursorPosition); 
+        isAiUpdating = false;
+
+        // Log Panelini Güncelle
+        addLog(data.action_log);
+    };
+
+    function addLog(message) {
+        const time = new Date().toLocaleTimeString();
+        const logItem = document.createElement("div");
+        logItem.className = "log-item";
+        logItem.innerHTML = `<div class="log-time">${time}</div><div>${message}</div>`;
+        logPanel.insertBefore(logItem, logPanel.children[1]); // En üste ekle
+    }
+
+    // Enter tuşuna basınca kodu AI'a gönder
+    editor.commands.addCommand({
+        name: 'sendToAI',
+        bindKey: {win: 'Enter', mac: 'Enter'},
+        exec: function(editor) {
+            editor.insert("\n");
+            if (!isAiUpdating) ws.send(editor.getValue());
+        }
+    });
+</script>
+</body>
+</html>
