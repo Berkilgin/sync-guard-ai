@@ -4,30 +4,26 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
+# dotenv ile gizli .env kasasını açıyoruz
 load_dotenv()
 
-# Render ortamından API anahtarını güvenli bir şekilde alıyoruz
-api_key = os.getenv("AIzaSyDRXvvDY9QKqzf3vZMtYNS44QGb3Bw0go8")
+# Şifreyi çevre değişkenlerinden (kasadan) çekiyoruz
+api_key = os.getenv("GEMINI_API_KEY")
 
-# Fonksiyonun parametrelerine 'username' ekliyoruz
 def resolve_sync_conflict(base_text, user1_input, username):
-    if not api_key:
-        return {
-            "resolved_text": user1_input, 
-            "action_log": "SYSTEM ERROR: GEMINI_API_KEY is missing."
-        }
-
     client = genai.Client(api_key=api_key)
     
-    # Prompt'a kullanıcının ismini dahil edip, logda bunu kullanmasını emrediyoruz
     prompt = f"""
-    You are 'Sync Guard AI', a real-time collaborative workspace moderator.
-    Context: "{base_text}"
-    New Input from user '{username}': "{user1_input}"
+    You are 'Sync Guard AI', a Python code moderator for a real-time workspace.
+    
+    Here is the current full code submitted by user '{username}':
+    {user1_input}
     
     Tasks:
-    1. Resolve conflicts, fix syntax errors if it's code, and censor inappropriate words with '***'.
-    2. Provide a short action log explaining what you changed. You MUST include the username '{username}' in the log (e.g., "{username} added a new function", "Fixed unclosed parenthesis in {username}'s code", "Censored inappropriate word from {username}").
+    1. Fix any syntax errors, typos (like 'printt' to 'print'), or logical conflicts.
+    2. Censor inappropriate words with '***'.
+    3. CRITICAL: You MUST preserve all Python indentation and line breaks (\\n). DO NOT squash the code into a single line. Return the properly formatted Python code exactly as a script should look.
+    4. Provide a short action log including the username.
     """
     
     try:
@@ -50,5 +46,5 @@ def resolve_sync_conflict(base_text, user1_input, username):
     except Exception as e:
         return {
             "resolved_text": user1_input, 
-            "action_log": f"AI Error from {username}'s input: {str(e)}"
+            "action_log": f"AI Hatası ({username}): {str(e)}"
         }
