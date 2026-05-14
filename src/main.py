@@ -37,6 +37,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# Sadece websocket_endpoint fonksiyonunu şu şekilde güncellemen yeterli:
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -44,13 +45,19 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             
-            # AI'dan JSON nesnesi dönüyor
-            ai_result = resolve_sync_conflict(manager.current_text, data, "")
+            # Gelen JSON verisini ayrıştırıp kullanıcı adını ve metni ayırıyoruz
+            try:
+                payload = json.loads(data)
+                user_text = payload.get("text", "")
+                username = payload.get("username", "Unknown User")
+            except:
+                user_text = data
+                username = "System"
             
-            # Çözümlenmiş metni sunucu hafızasına kaydet
+            # Kullanıcı adını da AI fonksiyonuna gönderiyoruz
+            ai_result = resolve_sync_conflict(manager.current_text, user_text, username)
             manager.current_text = ai_result["resolved_text"]
             
-            # JSON'u stringe çevirip tüm kullanıcılara yayınla
             await manager.broadcast(json.dumps(ai_result))
             
     except WebSocketDisconnect:

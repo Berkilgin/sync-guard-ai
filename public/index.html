@@ -39,32 +39,29 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.3/ace.js"></script>
 <script>
-    // Editör Kurulumu
+    // Kullanıcı siteye girdiğinde ismini sor (Boş bırakırsa rastgele bir isim ata)
+    let username = prompt("Lütfen kullanıcı adınızı girin:", "Dev_" + Math.floor(Math.random() * 1000));
+    if (!username || username.trim() === "") {
+        username = "Anonim_" + Math.floor(Math.random() * 1000);
+    }
+
     var editor = ace.edit("editor");
     editor.setTheme("ace/theme/monokai");
     editor.session.setMode("ace/mode/python");
 
-    // Başlangıç Kodu (ROS2 Örneği)
-    const defaultCode = `# ROS2 Macro Route Planning Node
-import rclpy
-from nav_msgs.msg import Path
-
-def plan_macro_route(start_coord, end_coord):
-    # Waiting for coordinates...
-    pass`;
-    
+    const defaultCode = `# ROS2 Macro Route Planning Node\nimport rclpy\nfrom nav_msgs.msg import Path\n\ndef plan_macro_route(start_coord, end_coord):\n    # Waiting for coordinates...\n    pass`;
     editor.setValue(defaultCode, -1); 
 
-    // WebSocket Bağlantısı
-    // Bağlanılan web adresini otomatik algılayıp güvenli (wss) veya normal (ws) bağlantı kurar
     const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
     const ws = new WebSocket(protocol + window.location.host + "/ws");
+    
     const status = document.getElementById("status");
     const logPanel = document.getElementById("log-panel");
     let isAiUpdating = false;
 
     ws.onopen = () => {
-        status.textContent = "Connected (Sync On)";
+        // Sağ üst köşede bağlanan kişinin adını göster
+        status.textContent = `Connected as ${username}`;
         status.style.color = "#4CAF50";
     };
     
@@ -74,10 +71,8 @@ def plan_macro_route(start_coord, end_coord):
     };
 
     ws.onmessage = function(event) {
-        // AI'dan gelen JSON verisini çözümle
         const data = JSON.parse(event.data);
         
-        // Kodu Güncelle (İmleci bozmadan)
         isAiUpdating = true;
         const cursorPosition = editor.getCursorPosition(); 
         editor.setValue(data.resolved_text, -1); 
@@ -85,7 +80,6 @@ def plan_macro_route(start_coord, end_coord):
         editor.moveCursorToPosition(cursorPosition); 
         isAiUpdating = false;
 
-        // Log Panelini Güncelle
         addLog(data.action_log);
     };
 
@@ -94,16 +88,22 @@ def plan_macro_route(start_coord, end_coord):
         const logItem = document.createElement("div");
         logItem.className = "log-item";
         logItem.innerHTML = `<div class="log-time">${time}</div><div>${message}</div>`;
-        logPanel.insertBefore(logItem, logPanel.children[1]); // En üste ekle
+        logPanel.insertBefore(logItem, logPanel.children[1]); 
     }
 
-    // Enter tuşuna basınca kodu AI'a gönder
     editor.commands.addCommand({
         name: 'sendToAI',
         bindKey: {win: 'Enter', mac: 'Enter'},
         exec: function(editor) {
             editor.insert("\n");
-            if (!isAiUpdating) ws.send(editor.getValue());
+            if (!isAiUpdating) {
+                // Sunucuya artık sadece kodu değil, kullanıcı adını da gönderiyoruz
+                const payload = {
+                    username: username,
+                    text: editor.getValue()
+                };
+                ws.send(JSON.stringify(payload));
+            }
         }
     });
 </script>
